@@ -1,7 +1,11 @@
 # brain.py
-# Inference only – no lifecycle logic
+# Inference engine for JARVIS (Phase 2)
+# - Uses short-term conversation memory
+# - No lifecycle or warm-up logic
 
 import requests
+import json
+
 from config import (
     OLLAMA_URL,
     MODEL_NAME,
@@ -11,20 +15,33 @@ from config import (
     USER_TITLE,
 )
 from context import get_system_context
+from memory import get_memory, add_message
 
 
 def ask_jarvis(user_query: str) -> str:
-    system_context = get_system_context()
+    """
+    Sends a prompt to Ollama and returns JARVIS's response.
+    Conversation memory is injected for continuity.
+    """
 
+    # Gather context
+    system_context = get_system_context()
+    conversation_history = get_memory()
+
+    # Build prompt
     prompt = f"""
 {system_context}
 
+{conversation_history}
+
 ROLE:
-You are JARVIS.
+You are JARVIS, the advanced AI assistant.
 
 INSTRUCTIONS:
 - Respond ONLY with the final answer
-- Be concise and professional
+- Do NOT reveal reasoning or internal thoughts
+- Maintain conversational continuity
+- Be concise, clear, and professional
 - Address the user as '{USER_TITLE}'
 
 USER QUERY:
@@ -35,7 +52,7 @@ USER QUERY:
         "model": MODEL_NAME,
         "prompt": prompt.strip(),
         "stream": False,
-        # 🔑 keep_alive belongs here (usage-time), NOT loading-time
+        # Keep model alive between turns
         "keep_alive": "30m",
         "options": {
             "temperature": DEFAULT_TEMPERATURE,
@@ -44,16 +61,29 @@ USER QUERY:
         },
     }
 
-    response = requests.post(
-        OLLAMA_URL,
-        json=payload,
-        timeout=600,
-    )
-    response.raise_for_status()
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json=payload,
+            timeout=300,
+        )
+        response.raise_for_status()
 
-    # NDJSON-safe parse (recommended)
-    raw = response.text.strip()
-    last = raw.splitlines()[-1]
+        # Ollama may return NDJSON; parse last JSON object
+        raw_text = response.text.strip()
+        last_line = raw_text.splitlines()[-1]
+        data = json.loads(last_line)
 
-    import json
-    return json.loads(last).get("response", "").strip()
+        answer = data.get("response", "").strip()
+
+        # Update conversation memory AFTER response
+        add_message("User", user_query)
+        add_message("JARVIS", answer)
+
+        return answer
+
+    except requests.exceptions.RequestException as e:
+        return f"Apologies, {USER_TITLE}. I encountered a communication error: {e}"
+
+    except json.JSONDecodeError:
+        return f"Apologies, {USER_TITLE}. I received an unreadable response from the model."
