@@ -1,13 +1,16 @@
 # voice.py
+# Voice input + output for JARVIS (Windows-native, stable)
+
 import whisper
 import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
+import win32com.client
 
 MODEL = whisper.load_model("base")
 
-# 🔴 CHANGE THIS to your actual mic index
-MIC_DEVICE_INDEX = 2  # e.g. 1
+MIC_DEVICE_INDEX = 2  # keep your working mic index
+
 
 def listen(seconds=6):
     print("🎤 Listening...")
@@ -18,7 +21,7 @@ def listen(seconds=6):
         samplerate=fs,
         channels=1,
         dtype=np.int16,
-        device=MIC_DEVICE_INDEX  # 👈 forces correct mic
+        device=MIC_DEVICE_INDEX
     )
     sd.wait()
     print("🛑 Recording complete.")
@@ -27,9 +30,12 @@ def listen(seconds=6):
     wav.write(filename, fs, recording)
 
     result = MODEL.transcribe(filename)
-    text = result.get("text", "").strip()
+    return result.get("text", "").strip()
 
-    # 🔍 DEBUG OUTPUT
-    print(f"[DEBUG] Transcribed text: '{text}'")
 
-    return text
+def speak(text: str):
+    if not text:
+        return
+
+    speaker = win32com.client.Dispatch("SAPI.SpVoice")
+    speaker.Speak(text)

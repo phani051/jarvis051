@@ -4,7 +4,7 @@
 from brain import ask_jarvis
 from model_loader import wait_for_model_ready
 from memory import get_memory, clear_memory, has_memory
-from voice import listen
+from voice import listen, speak
 from config import ASSISTANT_NAME, EXIT_COMMANDS, USER_TITLE
 
 
@@ -69,6 +69,7 @@ def main():
                 print(f"\nYou said: {spoken_text}")
                 response = ask_jarvis(spoken_text)
                 print(f"\n{response}")
+                speak(response)
                 continue
 
             # 🔹 Normal text input mode
