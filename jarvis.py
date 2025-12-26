@@ -7,6 +7,9 @@ from memory import get_memory, clear_memory, has_memory
 from voice import listen, speak
 from config import ASSISTANT_NAME, EXIT_COMMANDS, USER_TITLE
 
+import warnings
+warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
+
 
 def main():
     voice_mode = False          # 🔊 Voice mode flag
