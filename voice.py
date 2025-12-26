@@ -12,7 +12,7 @@ MODEL = whisper.load_model("base")
 MIC_DEVICE_INDEX = 2  # keep your working mic index
 
 
-def listen(seconds=6):
+def listen(seconds=5):
     print("🎤 Listening...")
     fs = 16000
 

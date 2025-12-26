@@ -1,5 +1,5 @@
 # jarvis.py
-# CLI entry point for JARVIS (Phase 2 + Voice, Windows-safe)
+# CLI entry point for JARVIS (Phase 2 + Voice Mode)
 
 from brain import ask_jarvis
 from model_loader import wait_for_model_ready
@@ -9,13 +9,16 @@ from config import ASSISTANT_NAME, EXIT_COMMANDS, USER_TITLE
 
 
 def main():
+    voice_mode = False          # 🔊 Voice mode flag
+    silence_count = 0           # 🛑 Silence tracker
+    MAX_SILENCE = 3
+
     print("=" * 60)
     print(f"🔄 Initializing {ASSISTANT_NAME}...")
     print("Please wait while the model is loading.")
     print("=" * 60)
 
     try:
-        # Block until the model responds at least once
         wait_for_model_ready()
     except Exception as e:
         print(f"\n❌ Failed to initialize {ASSISTANT_NAME}: {e}")
@@ -25,27 +28,64 @@ def main():
     print(f"✅ {ASSISTANT_NAME} online.")
     print(f"Awaiting your command, {USER_TITLE}.")
     print("Commands:")
-    print(" - voice        → speak your prompt")
-    print(" - show memory  → view conversation memory")
-    print(" - clear memory → reset conversation memory")
-    print(" - exit / quit / bye")
+    print(" - voice on     → enable voice mode")
+    print(" - bye / exit   → spoken or typed exit")
+    print(" - show memory")
+    print(" - clear memory")
     print("=" * 60)
 
     while True:
         try:
-            user_input = input("\n> ").strip()
+            # 🎤 Voice Mode
+            if voice_mode:
+                spoken_text = listen()
+                command = spoken_text.lower().strip() if spoken_text else ""
 
-            if not user_input:
-                continue
+                # 🔴 EXIT ALWAYS HAS PRIORITY
+                if command in EXIT_COMMANDS:
+                    farewell = f"Goodbye, {USER_TITLE}. Have a great day."
+                    print(f"\n{ASSISTANT_NAME}: {farewell}")
+                    speak(farewell)
+                    break
 
-            command = user_input.lower()
+                # 🛑 Handle silence
+                if not command:
+                    silence_count += 1
+                    print("\nI did not catch that, sir.")
 
-            # 🔹 Exit commands
+                    if silence_count >= MAX_SILENCE:
+                        standby = f"I am standing by, {USER_TITLE}."
+                        print(f"\n{ASSISTANT_NAME}: {standby}")
+                        speak(standby)
+                        voice_mode = False
+                        silence_count = 0
+                    continue
+
+                # Reset silence counter on valid speech
+                silence_count = 0
+                print(f"\nYou said: {spoken_text}")
+                user_input = spoken_text
+
+            else:
+                user_input = input("\n> ").strip()
+                if not user_input:
+                    continue
+                command = user_input.lower()
+
+            # 🔹 Typed exit (text mode)
             if command in EXIT_COMMANDS:
-                print(f"\n{ASSISTANT_NAME} signing off. Goodbye, {USER_TITLE}.")
+                farewell = f"Goodbye, {USER_TITLE}. Have a great day."
+                print(f"\n{ASSISTANT_NAME}: {farewell}")
                 break
 
-            # 🔹 Memory commands (handled locally)
+            # 🔹 Voice mode toggle (typed only)
+            if command == "voice on":
+                voice_mode = True
+                silence_count = 0
+                print("\n🎤 Voice mode enabled.")
+                continue
+
+            # 🔹 Memory commands
             if command == "show memory":
                 if has_memory():
                     print("\n" + get_memory())
@@ -58,23 +98,12 @@ def main():
                 print("\nConversation memory cleared.")
                 continue
 
-            # 🔹 Voice input mode
-            if command == "voice":
-                spoken_text = listen()
-
-                if not spoken_text:
-                    print("\nI did not catch that, sir.")
-                    continue
-
-                print(f"\nYou said: {spoken_text}")
-                response = ask_jarvis(spoken_text)
-                print(f"\n{response}")
-                speak(response)
-                continue
-
-            # 🔹 Normal text input mode
+            # 🔹 Normal LLM processing
             response = ask_jarvis(user_input)
             print(f"\n{response}")
+
+            if voice_mode:
+                speak(response)
 
         except (KeyboardInterrupt, EOFError):
             print(f"\n\n{ASSISTANT_NAME} interrupted. Standing down, {USER_TITLE}.")
